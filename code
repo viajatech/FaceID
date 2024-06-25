@@ -1,0 +1,124 @@
+#David Ruiz
+#@viajatech 
+
+import cv2
+import os
+import numpy as np
+import pickle
+import time
+from sklearn.metrics.pairwise import cosine_similarity
+
+def capture_and_save_face(username):
+    print("Iniciando captura de rostro. Mira a la cámara...")
+    cap = cv2.VideoCapture(0)
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    
+    start_time = time.time()
+    while time.time() - start_time < 10:  # Límite de 10 segundos
+        ret, frame = cap.read()
+        if not ret:
+            print("Error al capturar imagen. Verificando cámara...")
+            continue
+        
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+        
+        for (x, y, w, h) in faces:
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
+            cv2.imshow('Captura de rostro', frame)
+            cv2.waitKey(1)
+            
+            if not os.path.exists('faces'):
+                os.makedirs('faces')
+            
+            face = gray[y:y+h, x:x+w]
+            face_resized = cv2.resize(face, (100, 100))
+            cv2.imwrite(f'faces/{username}.jpg', face_resized)
+            
+            face_encoding = face_resized.flatten().astype(np.float64)
+            face_encoding /= np.linalg.norm(face_encoding)  # Normalize the encoding
+            
+            with open(f'faces/{username}.pkl', 'wb') as f:
+                pickle.dump(face_encoding, f)
+            
+            print(f"Rostro capturado y guardado exitosamente. Dimensiones: {face_encoding.shape}")
+            cap.release()
+            cv2.destroyAllWindows()
+            return True
+    
+    print("Tiempo agotado. No se pudo capturar el rostro.")
+    cap.release()
+    cv2.destroyAllWindows()
+    return False
+
+def verify_face(username):
+    if not os.path.exists(f'faces/{username}.pkl'):
+        print(f"No se encontró un rostro registrado para {username}.")
+        return False
+    
+    print("Iniciando verificación. Mira a la cámara...")
+    with open(f'faces/{username}.pkl', 'rb') as f:
+        saved_encoding = pickle.load(f)
+    
+    print(f"Dimensiones del encoding guardado: {saved_encoding.shape}")
+    
+    cap = cv2.VideoCapture(0)
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    
+    start_time = time.time()
+    while time.time() - start_time < 5:  # Límite de 5 segundos
+        ret, frame = cap.read()
+        if not ret:
+            continue
+        
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+        
+        for (x, y, w, h) in faces:
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
+            cv2.imshow('Verificación de rostro', frame)
+            cv2.waitKey(1)
+            
+            face = gray[y:y+h, x:x+w]
+            face_resized = cv2.resize(face, (100, 100))
+            face_encoding = face_resized.flatten().astype(np.float64)
+            face_encoding /= np.linalg.norm(face_encoding)  # Normalize the encoding
+            
+            print(f"Dimensiones del encoding actual: {face_encoding.shape}")
+            
+            if face_encoding.shape != saved_encoding.shape:
+                print(f"Error: Las dimensiones no coinciden. Guardado: {saved_encoding.shape}, Actual: {face_encoding.shape}")
+                continue
+            
+            similarity = cosine_similarity(saved_encoding.reshape(1, -1), face_encoding.reshape(1, -1))[0][0]
+            
+            print(f"Similitud calculada: {similarity}")
+            
+            if similarity > 0.8:  # Ajustado el umbral
+                print("Identidad verificada.")
+                cap.release()
+                cv2.destroyAllWindows()
+                return True
+    
+    print("Tiempo agotado. No se pudo verificar la identidad.")
+    cap.release()
+    cv2.destroyAllWindows()
+    return False
+
+def main():
+    username = "viaja tech"
+    
+    if not os.path.exists(f'faces/{username}.jpg'):
+        print("Registro inicial. Capturando rostro...")
+        if not capture_and_save_face(username):
+            print("No se pudo completar el registro. Por favor, inténtalo de nuevo.")
+            return
+    
+    print("Por favor, mire a la cámara para verificar su identidad.")
+    if verify_face(username):
+        print("Acceso concedido. Bienvenido, " + username)
+    else:
+        print("Acceso denegado. No se pudo verificar la identidad.")
+
+if __name__ == "__main__":
+    main()
