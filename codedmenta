@@ -1,3 +1,8 @@
+#Estilo verde menta
+#David Ruiz
+#@viajatech
+
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 import cv2
